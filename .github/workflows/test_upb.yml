@@ -1,0 +1,45 @@
+name: Upb Bazel Tests
+
+on:
+  workflow_call:
+    inputs:
+      safe-checkout:
+        required: true
+        description: "The SHA key for the commit we want to run over"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false   # Don't cancel all jobs if one fails.
+      matrix:
+        config:
+          - { NAME: "Fastbuild", BAZEL: bazel, CC: clang, flags: "" }
+          - { NAME: "Optimized", BAZEL: bazel, CC: clang, flags: "-c opt" }  # Some warnings only fire with -c opt
+          - { NAME: "GCC Optimized", BAZEL: bazel, CC: gcc-12, flags: "-c opt" }
+          - { NAME: "FastTable", BAZEL: bazel, CC: clang, flags: "--@upb//:fasttable_enabled=true -- -@upb//cmake:test_generated_files" }
+          - { NAME: "ASAN", BAZEL: bazel, CC: clang, flags: "--config=asan -c dbg -- -@upb//benchmarks:benchmark -@upb//python/..." }
+        include:
+          # Set defaults
+          - image: us-docker.pkg.dev/protobuf-build/containers/test/linux/sanitize@sha256:04cd765285bc52cbbf51d66c8c66d8603579cf0f19cc42df26b09d2c270541fb
+          - targets: "@upb//..."
+    name: ${{ matrix.NAME }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pending changes
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        with:
+          ref: ${{ inputs.safe-checkout }}
+      - name: Check compiler versions
+        if: matrix.CC
+        run: ${{ matrix.CC }} --version
+      - name: Run tests
+        uses: protocolbuffers/protobuf-ci/bazel-docker@v2
+        with:
+          image: ${{ matrix.image }}
+          credentials: ${{ secrets.GAR_SERVICE_ACCOUNT }}
+          bazel: test ${{ matrix.targets }} ${{ matrix.config.flags }}
