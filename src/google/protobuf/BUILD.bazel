@@ -373,6 +373,7 @@ cc_library(
         "generated_message_util.cc",
         "implicit_weak_message.cc",
         "inlined_string_field.cc",
+        "internal_visibility.h",
         "map.cc",
         "message_lite.cc",
         "parse_context.cc",
